@@ -775,3 +775,11 @@ ggmmodel <- function(edges0,MIchoice)
   
   return(ggmcode)
 }
+
+## Modify modi
+modindices_new <- function(mod, ...) {
+  mi_tbl <- lavaan::modindices(mod, ...)
+  mi_tbl$lhs <- str_replace(mi_tbl$lhs, "^z", "")
+  mi_tbl$rhs <- str_replace(mi_tbl$rhs, "^z", "")
+  return(mi_tbl)
+}

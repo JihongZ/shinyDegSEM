@@ -32,7 +32,9 @@ fluidPage(
       downloadButton("download_DEGs_table", "DEGs Result"),
       
       h3("Step3: Enrichment Analysis"),
-      radioButtons('EnrichOrTable', "Enrichment Analysis or Selecting the pathway name(s)?", choices = c("enrich" = "enrich", "tab" = "tab")),
+      radioButtons('EnrichOrTable', 
+                   "Enrichment Analysis or Selecting the pathway name(s)?", 
+                   choices = c("enrich" = "enrich", "tab" = "tab")),
       conditionalPanel(
         condition = "input.EnrichOrTable == 'tab'",
         fileInput("pathway_table", "Upload the table of pathway names")
@@ -43,16 +45,21 @@ fluidPage(
       ),
       
       h3("Step4: Network Analysis"),
+      selectInput("pathway_select", 
+                  "Select the pathway(s) for network visualization", 
+                  choices = NULL, selected = NULL, multiple = TRUE),
       actionButton("pathway_upd_indicate", "Run Network Analysis"),
-      selectInput("pathway_select", "Select the pathway(s) for network visualization", choices = NULL, selected = NULL, multiple = TRUE),
-      downloadButton("download_SEM_data", "Download Pathway data fed into SEM analysis"),
+      downloadButton("download_SEM_data", "Download Pathway Data"),
+      downloadButton("download_pathway_igraph", "Download Pathway Igraph"),
       
       h3("Step5: SEM Analysis"),
-      selectInput("selected_pathway", "Select a pathway of interest (Note: click the 'Run Initial SEM' button to clean up your previous models.):", choices = NULL, selected = NULL, multiple = F),
+      selectInput("selected_pathway", 
+                  "Select a pathway of interest \n(Note: click the 'Run Initial SEM' button to clean up your previous models.):",
+                  choices = NULL, selected = NULL, multiple = F),
       # 其他 SEM 分析选项
-      selectInput("Iestimator", "Select SEM estimator:", 
-                  choices = c("ML", "MLM", "WLS", "WLSM", "ULS", "GLS", "FIML"),
-                  selected = "ML"),
+      # selectInput("Iestimator", "Select SEM estimator:", 
+      #             choices = c("ML", "MLM", "WLS", "WLSM", "ULS", "GLS", "FIML"),
+      #             selected = "ML"),
       # 按钮：初始化模型
       actionButton("Iinitialrun", "Run Initial SEM"),
       # 按钮：运行模型修正

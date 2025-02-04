@@ -59,6 +59,10 @@ if (!requireNamespace("stringr", quietly = TRUE)){
   BiocManager::install("stringr")
 }
 library(stringr)
+if (!requireNamespace("SEMgraph", quietly = TRUE)){
+  install.packages("SEMgraph", type = "binary")
+}
+library(SEMgraph)
 
 
 # library(org.Hs.eg.db)

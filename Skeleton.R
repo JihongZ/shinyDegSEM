@@ -81,7 +81,7 @@ data_pathway <- as.data.frame(data_pathway)
 # SEM Analysis ------------------------------------------------------------
 
 ## input$selected_pathway: Select Pathway for SEM
-selected_pathway <- selected_options[1]
+selected_pathway <- selected_options[5] # "Chagas disease" 
 select_option <- selected_pathway 
 i <- select_option
 
@@ -112,14 +112,51 @@ data_pathway_sem
 data_pathway_sem <- data_pathway_sem_global <- data_pathway_sem
 mod0 <- originalmodel(edges0)
 
+### Lavaan
 fit0 <- sem(mod0,
              data = data_pathway_sem,
              estimator = "ML",
              fixed.x = FALSE, std.ov = F
 )
+fit0 <- SEMrun(lavaan2graph(mod0),
+               data = data_pathway_sem
+)$fit
+summary(fit0)
+modindices_new(fit0)
+
 # 对最新的model进行modification indices计算
 MI_tbl <- modindices(fit0, minimum.value = 3.84, sort = TRUE)
 
+## MI ----
+fit_configural <-
+  SEMrun(
+    lavaan2graph(mod0),
+    data = data_pathway_sem,
+    group = data_pathway_sem$group
+  )
+gplot(fit_configural$graph)
+parameterestimates(fit_configural$fit)
+fit_metric <-
+  SEMrun(
+    lavaan2graph(mod0),
+    data = data_pathway_sem,
+    group = data_pathway_sem$group,
+    fit = 1
+  )$fit
+
+fit_scalar <-
+  SEMrun(
+    lavaan2graph(mod0),
+    data = data_pathway_sem,
+    group = data_pathway_sem$group,
+    fit = 2
+  )
+gplot(fit_scalar$graph)
+
+modcompr <- semTools::compareFit(fit_configural, 
+                     fit_metric, 
+                     fit_scalar) # output
+modcompr@nested
 ## edge analysis ---------------------------------------------------------
 MITable <- MITablefinal <- NULL
 

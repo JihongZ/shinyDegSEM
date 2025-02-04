@@ -4,6 +4,8 @@ options(shiny.maxRequestSize = 100 * 1024^2)
 
 function(input, output, session) {
   data_pathway_sem_global <- reactiveVal(NULL)
+  #edge0_global_global <- reactiveVal(NULL)
+  #edge0_global <- reactiveValues()
   mod0 <- reactiveValues()
 
   data <- reactive({
@@ -96,15 +98,24 @@ function(input, output, session) {
     data_sam <- list(x = as.matrix(data_), y = seq_(), geneid = as.character(1:nrow(data_)), genenames = paste("g", as.character(1:nrow(data_)), sep = ""), logged2 = TRUE)
   })
   
-  # DEG Analysis (02/04/2025) ----
+
   samr.obj <- reactive({
     data_sam_ <- data_sam()
-    if (is.null(data_sam_)) return(NULL)
+    if (is.null(data_sam_)) {
+      return(NULL)
+    }
+    # Create a Progress object
     progress <- shiny::Progress$new()
+    # Close the progress when this reactive exits (even if there's an error)
     on.exit(progress$close())
-    progress$set(message = "Running SAM", value = 0)
+    
+    progress$set(message = "Significance Analysis of Microarrays", value = 0)
+    progress$inc(1/5, detail = "Running")
     samr.obj <- samr(data_sam_, resp.type = "Two class unpaired", nperms = 400)
-    progress$inc(1, detail = "Finish")
+    
+    # Increment the progress bar, and update the detail text.
+    progress$inc(4/5, detail = "Finish")
+    
     samr.obj
   })
 
@@ -233,8 +244,7 @@ function(input, output, session) {
   })
 
   prepareSPIA(kegg, "out_kegg2")
-  
-  # Enrichment Analysis (02/04/2025)----
+
   r_graph <- reactive({
     fold_change_sign_ <- fold_change_sign()
     data_ <- data()
@@ -242,14 +252,15 @@ function(input, output, session) {
       return(NULL)
     }
     
+    # Create a Progress object
     progress <- shiny::Progress$new()
+    # Close the progress when this reactive exits (even if there's an error)
     on.exit(progress$close())
     
     progress$set(message = "Preparing pathway dataset", value = 0)
     progress$inc(1/5, detail = "Running SPIA analysis")
     
     r_graph <- runSPIA(fold_change_sign_, rownames(data_), "out_kegg2")
-    r_graph <- r_graph[r_graph$NDE > 2, ]  # Filter out pathways with NDE <= 2
     
     progress$inc(4/5, detail = "Finish! You can run Network Analysis now.")
     
@@ -278,7 +289,7 @@ function(input, output, session) {
     options <- as.vector(r_graph_()[, 1])
     selected_options <- options[1:5]
     updateSelectInput(session, "pathway_select", choices = options, selected = selected_options)
-    updateSelectInput(session, "selected_pathway", choices = options, selected = selected_options[1])
+    updateSelectInput(session, "selected_pathway", choices = options, selected = selected_options)
   })
 
   output$pathway_ori <- renderTable({
@@ -499,7 +510,7 @@ function(input, output, session) {
       #  getedge(outp_path_sem()[[1]], pathinfo_sem())
       #})
 
-      # Create Initial SEM model: mod0 (Removed)---- 
+      # 使用文本输入框中的内容创建 mod0
       mod0 <<- reactive({
         originalmodel(edges0())
       })
@@ -548,21 +559,14 @@ function(input, output, session) {
 
 
   # ... (其他代码)
-  # estimator <- reactive({
-  #   input$Iestimator
-  # })
+  estimator <- reactive({
+    input$Iestimator
+  })
 
 
 
-  # Download Pathway Igraph: ----
-  output$download_pathway_igraph <- downloadHandler(
-    filename = function() {
-      "pathway_igraph.rds"
-    },
-    content = function(file) {
-      saveRDS(r_graph_(), file)
-    }
-  )
+  
+  
 
   # SEM: Output Tabset ----------------------------------------------------
   output$sem_analysis <- renderUI({
@@ -572,7 +576,12 @@ function(input, output, session) {
         condition = !is.null(input$selected_pathway),
         tableOutput("all_model_showcase"),
         h3("Edge List of the Latest Model"),
-        tableOutput("edge0_global_display")
+        tableOutput("edge0_global_display"),
+        #   tableOutput("SEM_data"),
+        #   h3("Network Analysis Summary"),
+        #   tableOutput("SEM_networkSummary"),
+        #   h3("edge0_global_global这个显示不出来"),
+        #   tableOutput("edge0_global_global"),
       ),
       tabPanel("Step1:Original Model",
         value = "step1",
@@ -614,23 +623,21 @@ function(input, output, session) {
         # strong("Click the button 'Run Node Analysis' on the left panel."),
         # p(" "),
         verbatimTextOutput("Omodnodeanalysis"),
-        verbatimTextOutput("Omodnodeanalysisfit"),
-        plotOutput("OmodnodeanalysisGraph")
+        verbatimTextOutput("Omodnodeanalysisfit")
       ),
       tabPanel("Step5:Edge Analysis",
         value = "step5",
         # strong("Click the button 'Run Edge Analysis' on the left panel."),
         # p(" "),
         verbatimTextOutput("Omodedgeanalysis"),
-        verbatimTextOutput("Omodedgeanalysisfit"),
-        plotOutput("OmodedgeanalysisGraph")
+        verbatimTextOutput("Omodedgeanalysisfit")
       )
     )
     do.call(tabsetPanel, tabs)
   })
 
 
-  # Step 1: Initial Run SEM -------------------------------------------------------------
+  # SEM: Initial Run -------------------------------------------------------------
   observeEvent(input$Iinitialrun, {
     updateTabsetPanel(session, inputId = "panel1", selected = "panel1_sem")
     updateTabsetPanel(session, inputId = "panel1_sem1", selected = "step1")
@@ -674,13 +681,14 @@ function(input, output, session) {
 
     tryCatch(
       {
-        # Use SEMgraph Package for SEM Analysis: ----
         # run estimation
         fit0 <<- reactive({
-          SEMrun(
-            graph = lavaan2graph(mod0()),
-            data = data_pathway_sem()
-          )$fit
+          sem(mod0(),
+            estimator = estimator(),
+            data = data_pathway_sem(),
+            fixed.x = FALSE,
+            std.ov = F
+          )
         })
 
         # UnitTest: 模型运行
@@ -698,6 +706,7 @@ function(input, output, session) {
           pathway_tbl
         })
         
+        
         output$Omod0fit <- renderPrint({
           fit0_ <- fit0()
           if (is.null(fit0_)) {
@@ -711,13 +720,16 @@ function(input, output, session) {
         modList <<- reactiveVal(list(mod0())) # initialized to original specs
         MIchoiceList <<- reactiveVal(NULL) # initialized to original modification indices table
         MITableList <<- reactiveVal(NULL) # initialized to original modification indices table
-        
+
 
         ## 迭代修正原始模型 -----
         ### * 选择修正指数较大的路径添加进模型
-        MI0_tbl <- modindices_new(fitList()[[length(fitList())]], minimum.value = 3.84, sort = TRUE)
+        MI0_tbl <- modindices(fitList()[[length(fitList())]])
 
-        ## A table to store Index, FitIndex, Added Pathway ----
+        # 对MI表格进行排序
+        MI0_tbl <- order(MI0_tbl[, 4], decreasing = T) %>% MI0_tbl[., ]
+
+        ## 生成一个表格，储存目前运行的所有模型的Index, FitIndex, Added Pathway ----
         output$all_model_showcase <- renderTable({
           data_model_showcase()
         })
@@ -743,31 +755,31 @@ function(input, output, session) {
     )
   })
 
-  # Step 2: Update Model Based on MI -----
+  # Step2: 根据选择的modification indices进行修正 -----
   observeEvent(input$Irerun, {
     # open tab step 2
     updateTabsetPanel(session, inputId = "panel1", selected = "panel1_sem")
     updateTabsetPanel(session, inputId = "panel1_sem1", selected = "step2")
     updateTabsetPanel(session, inputId = "panel1_sem1_2", selected = "step2m")
 
-    ### Revise Model based on selected path ----
+    # 将选择的modification indices加回到模型中
     nmod <<- length(modList())
     MIchoice0 <- input$IModifSel
-    mod1 <- paste(modList()[[nmod]], MIchoice0, sep = " \n ")
     data_pathway_sem <- data_pathway_sem_global()
-    
-    # Fit the updated model ----
+    mod1 <- paste(modList()[[nmod]], MIchoice0, sep = " \n ")
+    ## 3.2 拟合修正后的模型模型
     tryCatch(
       {
-        fit1 <<- SEMrun(lavaan2graph(mod1),
-                        data = data_pathway_sem())$fit
+        fit1 <<- sem(mod1,
+          data = data_pathway_sem(),
+          estimator = estimator(),
+          fixed.x = FALSE, std.ov = F
+        )
       
         # 对最新的model进行modification indices计算
-        MI_tbl <- modindices_new(fit1, minimum.value = 3.84, sort = TRUE)
-        
+        MI_tbl <- modindices(fit1, minimum.value = 3.84, sort = TRUE)
         # 将通路(edges)提取出来
         MIchoice_total <- as.character(apply(MI_tbl[, 1:3], 1, \(x) paste0(x, collapse = " ")))
-        
         # 将下拉菜单中去掉选择的这个modification indice
         updateSelectInput(inputId = "IModifSel", choices = MIchoice_total)
         
@@ -775,6 +787,7 @@ function(input, output, session) {
         output$Omod1smry <- renderPrint({
           summary(fit1)
         })
+        
         
         output$edge0_global_display <- renderTable({
           pathway_tbl <- parameterEstimates(fit1) 
@@ -789,8 +802,7 @@ function(input, output, session) {
         MIchoiceList(c(MIchoiceList(), MIchoice0)) # 将参数列表更新到最新
         MITableList(c(MITableList(), list(MI_tbl))) # 将参数列表更新到最新
         nmod <<- length(modList())
-        
-        # Dropdown Menu：Select the final model
+        # 下拉菜单：可以选择任意最终模型.
         output$ImodifiedModSel <- renderUI({
           nmod <<- max(1, nmod - 1)
           selectInput("ImodifiedModSelNum", "Select your final model
@@ -799,8 +811,11 @@ function(input, output, session) {
                       choices = paste0("Model ", 0:nmod))
         })
       }, warning = function(w) {
-        fit1 <<- SEMrun(lavaan2graph(modList()[[nmod]]),
-                        data = data_pathway_sem())$fit
+        fit1 <<- sem(modList()[[nmod]],
+                     data = data_pathway_sem(),
+                     estimator = estimator(),
+                     fixed.x = FALSE, std.ov = F
+        )
         showNotification(paste0("Error: Modified Model Fail! Total number of modified models: ", length(fitList())- 1), type = "error")
         output$Omodcount <- renderText({ # total number of modified models
           print(paste0("Total number of modified models: ", nmod - 1))
@@ -829,10 +844,13 @@ function(input, output, session) {
           )
         })
       })
+
+        
+        
     
   })
 
-  # Selet the final model after MI -----
+  # 选择最终模型 -----
   observeEvent(input$ImodifiedModSelNum, {
     # open tab step 2: select final model
     updateTabsetPanel(session, inputId = "panel1", selected = "panel1_sem")
@@ -885,7 +903,7 @@ function(input, output, session) {
     )
   })
   
-  # Step3: Measurement Invariance ----
+  # Step3: 检验模型不变性 Measurement Invariance ----
   observeEvent(input$IRunMI, {
     # open tab step 4: run modification indices
     updateTabsetPanel(session, inputId = "panel1", selected = "panel1_sem")
@@ -894,28 +912,35 @@ function(input, output, session) {
     tryCatch(
       {
         fit_configural <-
-          SEMrun(
-            lavaan2graph(modfinal()),
+          sem(
+            modfinal(),
             data = data_pathway_sem(),
-            group = data_pathway_sem()$group
-          )$fit
+            estimator = estimator(),
+            group = "group",
+            fixed.x = FALSE
+          )
         fit_metric <-
-          SEMrun(
-            lavaan2graph(modfinal()),
+          sem(
+            modfinal(),
             data = data_pathway_sem(),
-            group = data_pathway_sem()$group,
-            fit = 1
-          )$fit
+            estimator = estimator(),
+            group = "group",
+            fixed.x = FALSE,
+            group.equal = c("regressions")
+          )
         fit_scalar <-
-          SEMrun(
-            lavaan2graph(modfinal()),
+          sem(
+            modfinal(),
             data = data_pathway_sem(),
-            group = data_pathway_sem()$group,
-            fit = 2
-            )$fit
-        modcompr <- semTools::compareFit(fit_configural, 
-                                         fit_metric, 
-                                         fit_scalar) # output
+            estimator = estimator(),
+            group = "group",
+            fixed.x = FALSE,
+            group.equal = c(
+              "regressions",
+              "intercepts"
+            )
+          )
+        modcompr <- semTools::compareFit(fit_configural, fit_metric, fit_scalar) # output
         # Output of model comparison
         output$Omodcompr <- renderPrint({
           modcompr@nested
@@ -936,29 +961,26 @@ function(input, output, session) {
     updateTabsetPanel(session, inputId = "panel1_sem1", selected = "step4")
     data_pathway_sem <- data_pathway_sem_global()
     # run model
-    # mod1g <- nodemodel(modfinal(), data_pathway_sem())
-    modg <- SEMrun(lavaan2graph(modfinal()),
+    mod1g <- nodemodel(modfinal(), data_pathway_sem())
+    fitg <- sem(mod1g,
       data = data_pathway_sem(),
-      group = data_pathway_sem()$group
+      estimator = estimator(),
+      meanstructure = TRUE, fixed.x = TRUE
     )
-    
 
     # output of node analysis
-    output$Omodnodeanalysis <- renderPrint({modg$gest})
-    
-    output$Omodnodeanalysisfit <- renderPrint({
-      fitMeasures(modg$fit, c("rmsea", "rmsea.pvalue", "srmr"))
+    output$Omodnodeanalysis <- renderPrint({
+      summary(fitg)
     })
-    
-    output$OmodnodeanalysisGraph <- renderPlot({
-      SEMgraph::gplot(modg$graph)
+    output$Omodnodeanalysisfit <- renderPrint({
+      fitMeasures(fitg, c("rmsea", "rmsea.pvalue", "srmr"))
     })
     output$download_NodeAnalysis_table <- downloadHandler(
       filename = function() {
         "results_for_node_analysis.xlsx"
       },
       content = function(file) {
-        write.xlsx(as.data.frame(parameterestimates(modg$fit)), file)
+        write.xlsx(as.data.frame(parameterestimates(fitg)), file)
       }
     )
   })
@@ -971,15 +993,14 @@ function(input, output, session) {
     
     data_pathway_sem <- data_pathway_sem_global()
     MITable <- MIchoicefinal()
-    
-    ### 输入数据data_pathway，以及它的group变量名
+    ### New method ## 输入数据data_pathway，以及它的group变量名
     cov_data_pathway_list <-
-      lapply(split(data_pathway_sem(), 
-                   data_pathway_sem()[["group"]]), 
-             function(x) cov(x[, setdiff(colnames(x), "group")]))
+      lapply(split(data_pathway_sem(), data_pathway_sem()[["group"]]), function(x) cov(x[, setdiff(colnames(x), "group")]))
     
     all_path <- as.matrix(Matrix::bdiag(cov_data_pathway_list))
     colnames(all_path) <- rownames(all_path) <- unlist(lapply(names(cov_data_pathway_list), \(x) paste0(colnames(cov_data_pathway_list[[x]]), "_", x)))
+    
+    
     
     pathway_tbl <- parameterEstimates(fit0())
     pathway_tbl <- pathway_tbl[,c(1,3,2, 4:ncol(pathway_tbl))]
@@ -988,25 +1009,27 @@ function(input, output, session) {
     
     ## 我这里将edge_pathway改了，改为组1:_1，组0:_0。而非原来的只有组0改了。
     tryCatch({
-      modedge <- SEMrun(lavaan2graph(modfinal()),
-                        data = data_pathway_sem(),
-                        group = data_pathway_sem()$group,
-                        fit = 2
-      )
+      fitdiff <-
+        sem(
+          moddiff,
+          estimator = estimator(),
+          sample.cov = all_path,
+          sample.nobs = mean(table(data_pathway_sem()[["group"]])),
+          fixed.x = FALSE
+        )
       # output of edge analysis
-      output$Omodedgeanalysis <- renderPrint({modedge$dest})
-      output$Omodedgeanalysisfit <- renderPrint({
-        fitMeasures(modedge$fit, c("rmsea", "rmsea.pvalue", "srmr"))
+      output$Omodedgeanalysis <- renderPrint({
+        summary(fitdiff)
       })
-      output$OmodedgeanalysisGraph <- renderPlot({
-        SEMgraph::gplot(modedge$graph)
+      output$Omodedgeanalysisfit <- renderPrint({
+        fitMeasures(fitdiff, c("rmsea", "rmsea.pvalue", "srmr"))
       })
       output$download_EdgeAnalysis_table <- downloadHandler(
         filename = function() {
           "results_for_edge_analysis.xlsx"
         },
         content = function(file) {
-          write.xlsx(as.data.frame(parameterestimates(modedge$fit)), file)
+          write.xlsx(as.data.frame(parameterestimates(fitdiff)), file)
         }
       )
     },
