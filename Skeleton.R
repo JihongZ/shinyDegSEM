@@ -132,10 +132,10 @@ fit_configural <-
   SEMrun(
     lavaan2graph(mod0),
     data = data_pathway_sem,
-    group = data_pathway_sem$group
-  )
+  )$fit
 gplot(fit_configural$graph)
-parameterestimates(fit_configural$fit)
+parameterestimates(fit_configural)
+
 fit_metric <-
   SEMrun(
     lavaan2graph(mod0),
@@ -143,20 +143,23 @@ fit_metric <-
     group = data_pathway_sem$group,
     fit = 1
   )$fit
-
+parameterestimates(fit_metric)
 fit_scalar <-
   SEMrun(
     lavaan2graph(mod0),
     data = data_pathway_sem,
     group = data_pathway_sem$group,
     fit = 2
-  )
+  )$fit
 gplot(fit_scalar$graph)
 
-modcompr <- semTools::compareFit(fit_configural, 
+library(semTools)
+modcompr <- compareFit(fit_configural, 
                      fit_metric, 
                      fit_scalar) # output
 modcompr@nested
+
+semTools::lavaan.mi()
 ## edge analysis ---------------------------------------------------------
 MITable <- MITablefinal <- NULL
 
