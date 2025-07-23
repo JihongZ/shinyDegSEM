@@ -73,8 +73,8 @@ fluidPage(
       ## 按钮：选择最终模型的图
       #actionButton("finalPlotShow", "Show the Final Model"),
       hr(),
-      # 按钮：运行测量不变性检验
-      actionButton("IRunMI", "Run Measurement Invariance"),
+      # 按钮：运行模型不变性检验
+      actionButton("IRunMI", "Run Model Invariance"),
       # 按钮：运行节点分析
       actionButton("IRunNodeAnalysis", "Run Node Analysis"),
       # 按钮：运行边分析
@@ -155,7 +155,20 @@ fluidPage(
         tabPanel(
           "Structural Equation Modeling",
           value = "panel1_sem",
-          uiOutput("sem_analysis")
+          uiOutput("sem_analysis"),
+          
+          tabPanel(
+            "Model Invariance Evaluation",  # New tab name
+            h3("Model Fit Indices"),
+            verbatimTextOutput("model_table"),
+            h3("Nested Model Comparison (ANOVA)"),
+            verbatimTextOutput("anova_results"),
+            h3("Group Effects on Node Model"),
+            verbatimTextOutput("node_fit"),
+            # Optional: Add download buttons for results
+            downloadButton("download_fit_indices", "Download Fit Indices"),
+            downloadButton("download_anova_results", "Download ANOVA Results")
+          )
         )  
       )
     )

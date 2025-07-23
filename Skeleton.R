@@ -128,36 +128,40 @@ modindices_new(fit0)
 MI_tbl <- modindices(fit0, minimum.value = 3.84, sort = TRUE)
 
 ## MI ----
-fit_configural <-
+fit_base <-
   SEMrun(
     lavaan2graph(mod0),
-    data = data_pathway_sem,
+    data = data_pathway_sem
   )$fit
-gplot(fit_configural$graph)
-parameterestimates(fit_configural)
+gplot(fit_base$graph)
+parameterestimates(fit_base)
 
-fit_metric <-
+fit_node <-
   SEMrun(
     lavaan2graph(mod0),
     data = data_pathway_sem,
     group = data_pathway_sem$group,
     fit = 1
   )$fit
-parameterestimates(fit_metric)
-fit_scalar <-
+parameterestimates(fit_node)
+fit_edge <-
   SEMrun(
     lavaan2graph(mod0),
     data = data_pathway_sem,
     group = data_pathway_sem$group,
     fit = 2
   )$fit
-gplot(fit_scalar$graph)
+gplot(fit_edge$graph)
 
 library(semTools)
-modcompr <- compareFit(fit_configural, 
-                     fit_metric, 
-                     fit_scalar) # output
-modcompr@nested
+modcompr <- compareFit(fit_base, 
+                     fit_node, 
+                     fit_edge) # output
+modcompr@fit[ , c("npar", "chisq", "df", "pvalue", "cfi", "aic", "bic", "rmsea", "srmr")]
+anova(fit_base, fit_edge) # base and edge models are nested
+fit_node
+ 
+# modcompr@nested
 
 semTools::lavaan.mi()
 ## edge analysis ---------------------------------------------------------

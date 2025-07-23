@@ -103,7 +103,11 @@ function(input, output, session) {
     progress <- shiny::Progress$new()
     on.exit(progress$close())
     progress$set(message = "Running SAM", value = 0)
+    
+    #try1
     samr.obj <- samr(data_sam_, resp.type = "Two class unpaired", nperms = 400)
+    # load("D:\\phd\\project\\gSEM2311\\review\\shinyDegSEM\\shinyDegSEM\\samr.obj")
+      
     progress$inc(1, detail = "Finish")
     samr.obj
   })
@@ -120,7 +124,11 @@ function(input, output, session) {
     
     progress$set(message = "Computing delta table", value = 0)
     progress$inc(1/5, detail = "Running")
+    
+    # try2
     delta.table <- samr.compute.delta.table(samr.obj_)
+    # load("D:\\phd\\project\\gSEM2311\\review\\shinyDegSEM\\shinyDegSEM\\delta.table")
+    
     progress$inc(4/5, detail = "Finish")
     
     delta.table
@@ -224,7 +232,7 @@ function(input, output, session) {
       "DEGs_table.csv"
     },
     content = function(file) {
-      write.csv(pos_sig_(), file)
+      write.csv(data_sign(), file)
     }
   )
 
@@ -232,6 +240,7 @@ function(input, output, session) {
     enrich_input_type <- input$EnrichOrTable
   })
 
+  # try3
   prepareSPIA(kegg, "out_kegg2")
   
   # Enrichment Analysis (02/04/2025)----
@@ -248,7 +257,10 @@ function(input, output, session) {
     progress$set(message = "Preparing pathway dataset", value = 0)
     progress$inc(1/5, detail = "Running SPIA analysis")
     
+    # try4
     r_graph <- runSPIA(fold_change_sign_, rownames(data_), "out_kegg2")
+    # load("D:\\phd\\project\\gSEM2311\\review\\shinyDegSEM\\shinyDegSEM\\r_graph")
+    
     r_graph <- r_graph[r_graph$NDE > 2, ]  # Filter out pathways with NDE <= 2
     
     progress$inc(4/5, detail = "Finish! You can run Network Analysis now.")
@@ -276,7 +288,8 @@ function(input, output, session) {
   # observeEvent(input$pathway_upd_indicate, {
   observe({
     options <- as.vector(r_graph_()[, 1])
-    selected_options <- options[1:5]
+    # selected_options <- options[1:5]
+    selected_options <- options[1]
     updateSelectInput(session, "pathway_select", choices = options, selected = selected_options)
     updateSelectInput(session, "selected_pathway", choices = options, selected = selected_options[1])
   })
@@ -291,7 +304,7 @@ function(input, output, session) {
 
   output$download_rgraph <- downloadHandler(
     filename = function() {
-      "r_graph.csv"
+      "ig.RData"
     },
     content = function(file) {
       write.csv(r_graph_(), file)
@@ -365,8 +378,12 @@ function(input, output, session) {
         outp_path <- graph_DE(graph_path(), sg_path(), names(fold_change_sign()), "out")
       })
 
-
-
+      ig <- reactive({
+        ig <- outp_path()[[1]]
+        V(ig)$name <- gsub("ENTREZID:", "", V(ig)$name)
+        V(ig)$label <- mapIds(org.Hs.eg.db, V(ig)$name, column = 'SYMBOL', keytype = 'ENTREZID')
+        return(ig)
+      })
 
       vcol1 <- reactive({
         vcol1 <- rep("c", length(outp_path()[[2]]))
@@ -400,8 +417,14 @@ function(input, output, session) {
         })
 
         output[[paste0("network_graph_", i)]] <- renderPlot({
-          plot(outp_path()[[1]],
-            vertex.label = outp_path()[[2]],
+          # plot(outp_path()[[1]],
+          #      vertex.label = outp_path()[[2]],
+          #      vertex.color = vcol1(), vertex.size = 5, vertex.label.cex = .7, vertex.label.dist = 1, edge.arrow.size = .4, edge.curved = .1,
+          #      main = "Plot"
+          # )
+          
+          plot(ig(),
+            vertex.label = V(ig())$label,
             vertex.color = vcol1(), vertex.size = 5, vertex.label.cex = .7, vertex.label.dist = 1, edge.arrow.size = .4, edge.curved = .1,
             main = "Plot"
           )
@@ -452,6 +475,18 @@ function(input, output, session) {
             write.xlsx(data_pathway(), file)
           }
         )
+        
+        
+        # Download Pathway Igraph: ----
+        output$download_pathway_igraph <- downloadHandler(
+          filename = function() {
+            "pathway_igraph.rds"
+          },
+          content = function(file) {
+            saveRDS(ig(), file)
+          }
+        )
+        
       })
     })
   }
@@ -554,15 +589,15 @@ function(input, output, session) {
 
 
 
-  # Download Pathway Igraph: ----
-  output$download_pathway_igraph <- downloadHandler(
-    filename = function() {
-      "pathway_igraph.rds"
-    },
-    content = function(file) {
-      saveRDS(r_graph_(), file)
-    }
-  )
+  # # Download Pathway Igraph: ----
+  # output$download_pathway_igraph <- downloadHandler(
+  #   filename = function() {
+  #     "pathway_igraph.rds"
+  #   },
+  #   content = function(file) {
+  #     saveRDS(outp_path()[[1]], file)
+  #   }
+  # )
 
   # SEM: Output Tabset ----------------------------------------------------
   output$sem_analysis <- renderUI({
@@ -715,7 +750,12 @@ function(input, output, session) {
 
         ## 迭代修正原始模型 -----
         ### * 选择修正指数较大的路径添加进模型
-        MI0_tbl <- modindices_new(fitList()[[length(fitList())]], minimum.value = 3.84, sort = TRUE)
+        # MI0_tbl <- modindices_new(fitList()[[length(fitList())]], minimum.value = 3.84, sort = TRUE)
+        alpha<- 0.05; Q <-qchisq(alpha, df=1, lower.tail=F)
+        MI0_tbl <- modindices_new(fitList()[[length(fitList())]], minimum.value =Q, sort = TRUE)
+        MI0_tbl_1<- subset(MI0_tbl, MI0_tbl $op == "~")
+        MI0_tbl_2<- subset(MI0_tbl, MI0_tbl $op == "~~")
+        MI0_tbl<- rbind(MI0_tbl_1, MI0_tbl_2)
 
         ## A table to store Index, FitIndex, Added Pathway ----
         output$all_model_showcase <- renderTable({
@@ -763,7 +803,14 @@ function(input, output, session) {
                         data = data_pathway_sem())$fit
       
         # 对最新的model进行modification indices计算
-        MI_tbl <- modindices_new(fit1, minimum.value = 3.84, sort = TRUE)
+        # MI_tbl <- modindices_new(fit1, minimum.value = 3.84, sort = TRUE)
+        
+        alpha<- 0.05; Q <-qchisq(alpha, df=1, lower.tail=F)
+        MI_tbl <- modindices_new(fit1, minimum.value =Q, sort = TRUE)
+        MI_tbl_1<- subset(MI_tbl, MI_tbl $op == "~")
+        MI_tbl_2<- subset(MI_tbl, MI_tbl $op == "~~")
+        MI_tbl<- rbind(MI_tbl_1, MI_tbl_2)
+        
         
         # 将通路(edges)提取出来
         MIchoice_total <- as.character(apply(MI_tbl[, 1:3], 1, \(x) paste0(x, collapse = " ")))
@@ -868,12 +915,19 @@ function(input, output, session) {
     output$Omodfinalfit <- renderPrint({
       fitMeasures(fitfinal(), c("rmsea", "rmsea.pvalue", "srmr"))
     })
+    
     output$Plotfinalfit <- renderPlot({
-      semPlot::semPaths(fitfinal())
+     semPlot::semPaths(fitfinal())
     })
+    
     output$final_model <- renderPrint({
       cat(modfinal())
     })
+    
+    # output$Plotfinalfit <- renderPlot({
+    #   # semPlot::semPaths(fitfinal())
+    #   SEMgraph::gplot(final_model()$graph)
+    # })
     
     output$download_FinalSEM_table <- downloadHandler(
       filename = function() {
@@ -893,37 +947,47 @@ function(input, output, session) {
     data_pathway_sem <- data_pathway_sem_global()
     tryCatch(
       {
-        fit_configural <-
+        fit_base <-
           SEMrun(
             lavaan2graph(modfinal()),
-            data = data_pathway_sem(),
-            group = data_pathway_sem()$group
+            data = data_pathway_sem()
           )$fit
-        fit_metric <-
+        fit_node <-
           SEMrun(
             lavaan2graph(modfinal()),
             data = data_pathway_sem(),
             group = data_pathway_sem()$group,
             fit = 1
           )$fit
-        fit_scalar <-
+        fit_edge <-
           SEMrun(
             lavaan2graph(modfinal()),
             data = data_pathway_sem(),
             group = data_pathway_sem()$group,
             fit = 2
             )$fit
-        modcompr <- semTools::compareFit(fit_configural, 
-                                         fit_metric, 
-                                         fit_scalar) # output
+        modcompr <- semTools::compareFit(fit_base, 
+                                         fit_node, 
+                                         fit_edge) # output
         # Output of model comparison
-        output$Omodcompr <- renderPrint({
-          modcompr@nested
+        output$model_table <- renderPrint({
+          cat("Model Fit Indices of the Base, Group Effects on Node, and Group Effects on Edge Models\n")
+          print(modcompr@fit[, c("npar", "chisq", "df", "pvalue", "cfi", "aic", "bic", "rmsea", "srmr")])
+        })
+        
+        output$anova_results <- renderPrint({
+          cat("ANOVA (Base vs. Edge Models) \n")
+          print(anova(fit_base, fit_edge))  # Assumes nested models
+        })
+        
+        output$node_fit <- renderPrint({
+          cat("Chi-square Goodness-of-Fit Test (for Group Effects on Node Model, i.e., fit_node model) \n")
+          print(fit_node)  # Replace with actual chi-square test output
         })
       },
       error = function(e) {
         output$Omodcompr <<- renderPrint({
-          "Measurement Invariance Fails. Choose another model to re-try."
+          "Model Invariance Fails. Choose another model to re-try."
         })
       }
     )
